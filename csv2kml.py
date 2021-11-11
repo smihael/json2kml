@@ -49,33 +49,42 @@ for row in reader:
     p.address = None
 
     m = re.match(r'.*google.com/maps/place/.*/data=.*!1s(0x[0-9a-fx:]+)', p.url)
-    if not m:
+    m2 = re.match(r".*google.com/maps/search/([0-9.]+),([0-9.]+)",p.url)
+    if not m and not m2:
         log('nomatch', p.url)
         csv.writer(failed_fd).writerow(row)
         continue
     
-    ftid = m.group(1)
-    log('match', ftid)
-    resp = urlopen(f'https://maps.googleapis.com/maps/api/place/details/json?key={apikey}&ftid={ftid}')
-    data = loads(resp.read())
-    
-    if data['status'] != 'OK':
-        log('error', data)
-        csv.writer(failed_fd).writerow(row + ['error: ' + data['status']])
-        continue
-    
-    try:
-        r = data['result']
-        p.address = r['formatted_address']
-        p.lat = r['geometry']['location']['lat']
-        p.long = r['geometry']['location']['lng']
-        log('addr', p.address, p.lat, p.long)
-    except Exception as e:
-        log('error', e, data)
-        raise
+    if not m2:
+        ftid = m.group(1)
+        log('match', ftid)
+        resp = urlopen(f'https://maps.googleapis.com/maps/api/place/details/json?key={apikey}&ftid={ftid}')
+        data = loads(resp.read())
+        
+        if data['status'] != 'OK':
+            log('error', data)
+            csv.writer(failed_fd).writerow(row + ['error: ' + data['status']])
+            continue
+        
+        try:
+            r = data['result']
+            p.address = r['formatted_address']
+            p.lat = r['geometry']['location']['lat']
+            p.long = r['geometry']['location']['lng']
+            log('addr', p.address, p.lat, p.long)
+        except Exception as e:
+            log('error', e, data)
+            raise
 
 
-    places.append(p)
+        places.append(p)
+    
+    if not m:
+        p.lat = float(m2.group(1))
+        p.long = float(m2.group(2))
+        places.append(p)
+        
+        
 
 temp = Template(filename='template.kml.mako')
 print(temp.render(
